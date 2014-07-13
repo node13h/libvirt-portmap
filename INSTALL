@@ -1,0 +1,10 @@
+Copy files to /opt/libvirt-portmap or other $SCRIPT_DIRECTORY
+of your choice
+
+Use it as /etc/libvirt/hooks/network:
+ln -s $SCRIPT_DIRECTORY/portmap /etc/libvirt/hooks/network
+
+or call it from that file like:
+$SCRIPT_DIRECTORY/portmap $1 $2
+
+Configuration files go to $SCRIPT_DIRECTORY/conf.d/*.conf

@@ -1,0 +1,79 @@
+#!/bin/bash
+
+#    Port mapping network hook script for libvirt
+#    Copyright (C) 2013  Sergej Alikov <sergej.alikov@gmail.com>
+#
+#    This program is free software; you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation; either version 2 of the License, or
+#    (at your option) any later version.
+#
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+#
+#    You should have received a copy of the GNU General Public License along
+#    with this program; if not, write to the Free Software Foundation, Inc.,
+#    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+
+#
+# Assuming you've put it in /opt/libvirt-portmap/portmap
+#
+# use it as /etc/libvirt/hooks/network:
+# ln -s /opt/libvirt-portmap/portmap /etc/libvirt/hooks/network
+#
+# or call it from that file like:
+# /opt/libvirt-portmap/portmap $1 $2
+#
+# Configuration files go to /opt/libvirt-portmap/conf.d/*.conf
+# example .conf:
+#
+# NETWORK_NAME=default
+# LAN_DEV=virbr0
+# WAN_DEV=eth0
+# WAN_PORT=22222
+# LAN_ADDR=192.168.122.2
+# LAN_PORT=22
+
+object=$1
+operation=$2
+
+if [ -L $0 ]; then
+  path=`readlink $0`
+else
+  path=$0
+fi
+
+BASE=`dirname $path`
+PORTMAPD=$BASE/conf.d
+
+find $PORTMAPD -name '*.conf' | while read filename; do
+
+  if [ -f $filename ]; then
+    source $filename
+
+    if [ "$NETWORK_NAME" == "$object" ]; then
+      case $operation in
+          started)
+              action='-I'
+              logger "Starting port-forwarding"
+              ;;
+          stopped)
+              action='-D'
+              logger "Stopping port-forwarding"
+              ;;
+          *)
+              exit 0
+              ;;
+      esac
+
+      iptables $action FORWARD -i $WAN_DEV -o $LAN_DEV -d $LAN_ADDR -p tcp --dport $LAN_PORT -j ACCEPT
+      iptables -t nat $action PREROUTING -p tcp -i $WAN_DEV --dport $WAN_PORT -j DNAT --to-destination $LAN_ADDR:$LAN_PORT
+      logger "$WAN_PORT => $LAN_ADDR:$LAN_PORT"
+
+    fi
+  fi
+
+done
+
